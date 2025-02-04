@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { ChatCompletionMessageParam } from 'openai/resources/chat';
 import { ChatHistoryRepository } from '@/database/repositories/chat-history.repository';
+import { UserRepository } from '@/database/repositories';
 
 @Injectable()
 export class AIService {
@@ -16,16 +17,26 @@ export class AIService {
   constructor(
     private configService: ConfigService,
     private chatHistoryRepository: ChatHistoryRepository,
+    private userRepository: UserRepository,
   ) {
     this.openai = new OpenAI({
       apiKey: this.configService.get<string>('OPENAI_API_KEY'),
     });
   }
 
-  async processMessage(message: string, userId: string): Promise<string> {
+  async processMessage(message: string, telegramId: string): Promise<string> {
     try {
+      // Tìm user dựa vào telegram_id
+      const user = await this.userRepository.findOne({
+        where: { telegram_id: telegramId }
+      });
+
+      if (!user) {
+        return 'Vui lòng khởi động bot bằng cách gửi tin nhắn bất kỳ trước khi tiếp tục.';
+      }
+
       // Lấy 5 tin nhắn gần nhất
-      const chatHistory = await this.chatHistoryRepository.getLast5Messages(userId);
+      const chatHistory = await this.chatHistoryRepository.getLast5Messages(user.id);
       
       // Tạo messages cho OpenAI API
       const messages: ChatCompletionMessageParam[] = [
@@ -50,7 +61,7 @@ export class AIService {
       await this.chatHistoryRepository.save({
         message,
         response,
-        user_id: userId,
+        user_id: user.id,
         role: 'user'
       });
 
@@ -58,7 +69,7 @@ export class AIService {
       await this.chatHistoryRepository.save({
         message: response,
         response: '',
-        user_id: userId,
+        user_id: user.id,
         role: 'assistant'
       });
 
