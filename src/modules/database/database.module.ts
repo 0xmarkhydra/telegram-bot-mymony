@@ -8,12 +8,24 @@ import { AdminConfigEntity } from './entities/admin-config.entity';
 import { SeedDatabase } from './seeders/seed.database';
 import { ExpenseEntity } from './entities/expense.entity';
 import { ExpenseRepository } from './repositories/expense.repository';
+import { ChatHistoryRepository } from './repositories/chat-history.repository';
+import { ChatHistoryEntity } from './entities/chat-history.entity';
 
-const repositories = [UserRepository, AdminConfigRepository, ExpenseRepository];
+const repositories = [
+  UserRepository,
+  AdminConfigRepository,
+  ExpenseRepository,
+  ChatHistoryRepository
+];
 
 const services = [];
 
-const entities = [UserEntity, AdminConfigEntity, ExpenseEntity];
+const entities = [
+  UserEntity,
+  AdminConfigEntity,
+  ExpenseEntity,
+  ChatHistoryEntity
+];
 
 @Module({
   imports: [

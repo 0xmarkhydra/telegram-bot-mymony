@@ -7,6 +7,7 @@ import { AIService } from '../ai/ai.service';
 import { ExpenseEntity } from '../database/entities/expense.entity';
 import { ExpenseRepository } from '../database/repositories/expense.repository';
 import { ExpenseCommandService } from './services/expense-command.service';
+import { ChatHistoryRepository } from '@/database/repositories/chat-history.repository';
 
 @Injectable()
 export class TelegramService {
@@ -19,6 +20,7 @@ export class TelegramService {
     private expenseRepository: ExpenseRepository,
     private readonly aiService: AIService,
     private readonly expenseCommandService: ExpenseCommandService,
+    private readonly chatHistoryRepository: ChatHistoryRepository,
   ) {
     this.bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
     this.watchMessage().catch(console.error);
@@ -28,6 +30,34 @@ export class TelegramService {
     this.bot.command('today', async (ctx) => {
       const userId = ctx.from.id.toString();
       const response = await this.expenseCommandService.getTodayExpenses(userId);
+      await ctx.reply(response);
+    });
+
+    // Thêm lệnh xem lịch sử chat
+    this.bot.command('history', async (ctx) => {
+      const userId = ctx.from.id.toString();
+      const user = await this.userRepository.findOne({
+        where: { telegram_id: userId }
+      });
+
+      if (!user) {
+        await ctx.reply('Vui lòng khởi động bot trước khi xem lịch sử.');
+        return;
+      }
+
+      const chatHistory = await this.chatHistoryRepository.getLast5Messages(user.id);
+      
+      if (chatHistory.length === 0) {
+        await ctx.reply('Bạn chưa có lịch sử chat nào.');
+        return;
+      }
+
+      let response = '📝 5 tin nhắn gần nhất:\n\n';
+      chatHistory.forEach((chat, index) => {
+        response += `${index + 1}. Bạn: ${chat.message}\n`;
+        response += `🤖 Bot: ${chat.response}\n\n`;
+      });
+
       await ctx.reply(response);
     });
 

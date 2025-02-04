@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
+import { ChatCompletionMessageParam } from 'openai/resources/chat';
+import { ChatHistoryRepository } from '@/database/repositories/chat-history.repository';
 
 @Injectable()
 export class AIService {
@@ -11,7 +13,10 @@ export class AIService {
   3. Trả lời các câu hỏi liên quan đến tài chính cá nhân
   Hãy trả lời bằng tiếng Việt một cách thân thiện và dễ hiểu.`;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private chatHistoryRepository: ChatHistoryRepository,
+  ) {
     this.openai = new OpenAI({
       apiKey: this.configService.get<string>('OPENAI_API_KEY'),
     });
@@ -19,17 +24,45 @@ export class AIService {
 
   async processMessage(message: string, userId: string): Promise<string> {
     try {
+      // Lấy 5 tin nhắn gần nhất
+      const chatHistory = await this.chatHistoryRepository.getLast5Messages(userId);
+      
+      // Tạo messages cho OpenAI API
+      const messages: ChatCompletionMessageParam[] = [
+        { role: 'system', content: this.context },
+        ...chatHistory.reverse().map(chat => ({
+          role: chat.role as 'user' | 'assistant',
+          content: chat.role === 'user' ? chat.message : chat.response
+        })),
+        { role: 'user', content: message }
+      ];
+
       const completion = await this.openai.chat.completions.create({
-        messages: [
-          { role: 'system', content: this.context },
-          { role: 'user', content: message }
-        ],
+        messages,
         model: 'gpt-3.5-turbo',
         temperature: 0.7,
         max_tokens: 500,
       });
 
-      return completion.choices[0].message.content || 'Xin lỗi, tôi không thể xử lý yêu cầu này.';
+      const response = completion.choices[0].message.content || 'Xin lỗi, tôi không thể xử lý yêu cầu này.';
+
+      // Lưu tin nhắn vào lịch sử
+      await this.chatHistoryRepository.save({
+        message,
+        response,
+        user_id: userId,
+        role: 'user'
+      });
+
+      // Lưu cả phản hồi của bot
+      await this.chatHistoryRepository.save({
+        message: response,
+        response: '',
+        user_id: userId,
+        role: 'assistant'
+      });
+
+      return response;
     } catch (error) {
       console.error('OpenAI Error:', error);
       return 'Xin lỗi, đã có lỗi xảy ra khi xử lý tin nhắn của bạn.';
@@ -41,14 +74,19 @@ export class AIService {
     suggestion?: string;
   }> {
     try {
-      const prompt = `Phân tích khoản chi tiêu sau và phân loại vào một trong các danh mục:
-      Ăn uống, Di chuyển, Mua sắm, Hóa đơn, Giải trí, Sức khỏe, Giáo dục, Đầu tư.
-      Đồng thời đưa ra gợi ý ngắn gọn nếu cần thiết.
-      Chi tiêu: "${description}"
-      Trả về dưới dạng JSON với format: {"category": "danh_mục", "suggestion": "gợi_ý"}`;
+      const messages: ChatCompletionMessageParam[] = [
+        {
+          role: 'user',
+          content: `Phân tích khoản chi tiêu sau và phân loại vào một trong các danh mục:
+          Ăn uống, Di chuyển, Mua sắm, Hóa đơn, Giải trí, Sức khỏe, Giáo dục, Đầu tư.
+          Đồng thời đưa ra gợi ý ngắn gọn nếu cần thiết.
+          Chi tiêu: "${description}"
+          Trả về dưới dạng JSON với format: {"category": "danh_mục", "suggestion": "gợi_ý"}`
+        }
+      ];
 
       const completion = await this.openai.chat.completions.create({
-        messages: [{ role: 'user', content: prompt }],
+        messages,
         model: 'gpt-3.5-turbo',
         temperature: 0.3,
         max_tokens: 200,
