@@ -27,7 +27,7 @@
       "@/shared/*": ["shared/*"],
       "@/worker/*": ["modules/worker/*"],
       "@/business/*": ["modules/business/*"],
-      "@/queue/*": ["modules/queue/*"]
+      "@/*": ["src/*"]
     }
   },
   "include": ["src"]

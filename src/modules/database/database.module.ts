@@ -6,12 +6,14 @@ import { UserEntity } from '@/database/entities';
 import { AdminConfigRepository, UserRepository } from './repositories';
 import { AdminConfigEntity } from './entities/admin-config.entity';
 import { SeedDatabase } from './seeders/seed.database';
+import { ExpenseEntity } from './entities/expense.entity';
+import { ExpenseRepository } from './repositories/expense.repository';
 
-const repositories = [UserRepository, AdminConfigRepository];
+const repositories = [UserRepository, AdminConfigRepository, ExpenseRepository];
 
 const services = [];
 
-const entities = [UserEntity, AdminConfigEntity];
+const entities = [UserEntity, AdminConfigEntity, ExpenseEntity];
 
 @Module({
   imports: [
