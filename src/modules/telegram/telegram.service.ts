@@ -81,14 +81,22 @@ export class TelegramService {
         }).catch(console.error);
       }
 
-      // Kiểm tra nếu tin nhắn có dạng chi tiêu
-      if (message.match(/.*\d+[kK]?$/)) {
-        const response = await this.expenseCommandService.processExpenseMessage(message, id.toString());
-        await ctx.reply(response);
-      } else {
-        // Xử lý tin nhắn thông thường với AI
-        const response = await this.aiService.processMessage(message, id.toString());
-        await ctx.reply(response);
+      try {
+        // Phân tích tin nhắn để xác định có phải là chi tiêu không
+        const isExpenseMessage = await this.aiService.isExpenseMessage(message);
+        
+        console.log('isExpenseMessage:', isExpenseMessage);
+        if (isExpenseMessage) {
+          const response = await this.expenseCommandService.processExpenseMessage(message, id.toString());
+          await ctx.reply(response);
+        } else {
+          // Xử lý tin nhắn thông thường với AI
+          const response = await this.aiService.processMessage(message, id.toString());
+          await ctx.reply(response);
+        }
+      } catch (error) {
+        console.error('Error processing message:', error);
+        await ctx.reply('Xin lỗi, đã có lỗi xảy ra khi xử lý tin nhắn của bạn.');
       }
     });
   }

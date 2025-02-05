@@ -38,6 +38,7 @@ export class AIService {
       // Lấy 5 tin nhắn gần nhất
       const chatHistory = await this.chatHistoryRepository.getLast5Messages(user.id);
       
+      console.log('chatHistory', chatHistory);
       // Tạo messages cho OpenAI API
       const messages: ChatCompletionMessageParam[] = [
         { role: 'system', content: this.context },
@@ -111,6 +112,42 @@ export class AIService {
     } catch (error) {
       console.error('OpenAI Analysis Error:', error);
       return { category: 'Khác' };
+    }
+  }
+
+  async isExpenseMessage(message: string): Promise<boolean> {
+    try {
+      const messages: ChatCompletionMessageParam[] = [
+        {
+          role: 'user',
+          content: `Phân tích xem tin nhắn sau có phải là một khoản chi tiêu hay không.
+          Tin nhắn phải chứa số tiền (có thể có 'k' hoặc 'K' ở cuối) và mô tả chi tiêu.
+          Ví dụ hợp lệ: 
+          - "Ăn cơm 40k"
+          - "Mua sách 150000"
+          - "Đi taxi về nhà 60k"
+          
+          Tin nhắn cần phân tích: "${message}"
+          
+          Trả về dưới dạng JSON với format: {"is_expense": true/false}
+          Chỉ trả về JSON, không cần giải thích thêm.`
+        }
+      ];
+
+      const completion = await this.openai.chat.completions.create({
+        messages,
+        model: 'gpt-3.5-turbo',
+        temperature: 0.3,
+        max_tokens: 50,
+      });
+
+      const result = JSON.parse(completion.choices[0].message.content || '{}');
+      return result.is_expense || false;
+
+    } catch (error) {
+      console.error('AI Expense Detection Error:', error);
+      // Fallback về regex nếu AI fail
+      return !!message.match(/.*\d+[kK]?$/);
     }
   }
 } 

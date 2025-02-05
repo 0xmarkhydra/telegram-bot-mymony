@@ -3,6 +3,7 @@ import { ExpenseRepository } from '@/database/repositories/expense.repository';
 import { AIService } from '../../ai/ai.service';
 import { ExpenseEntity } from '@/database/entities/expense.entity';
 import { UserRepository } from '@/database/repositories';
+import { Between, MoreThanOrEqual } from 'typeorm';
 
 @Injectable()
 export class ExpenseCommandService {
@@ -68,7 +69,6 @@ export class ExpenseCommandService {
 
   async getTodayExpenses(telegramId: string): Promise<string> {
     try {
-      // Tìm user dựa vào telegram_id
       const user = await this.userRepository.findOne({
         where: { telegram_id: telegramId }
       });
@@ -77,14 +77,43 @@ export class ExpenseCommandService {
         return 'Vui lòng khởi động bot bằng cách gửi tin nhắn bất kỳ trước khi xem chi tiêu.';
       }
 
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      // Lấy thời gian đầu ngày và cuối ngày theo múi giờ UTC+7
+      const now = new Date();
+      const utcOffset = 7; // UTC+7 cho Việt Nam
+
+      // Điều chỉnh về đầu ngày theo UTC+7
+      const startOfDay = new Date(Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate(),
+        -utcOffset, // 00:00 UTC+7 = 17:00 UTC ngày hôm trước
+        0,
+        0
+      ));
+
+      // Điều chỉnh về cuối ngày theo UTC+7
+      const endOfDay = new Date(Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate(),
+        24 - utcOffset - 1, // 23:59:59 UTC+7 = 16:59:59 UTC
+        59,
+        59,
+        999
+      ));
+
+      console.log('Current UTC time:', new Date().toISOString());
+      console.log('startOfDay UTC:', startOfDay.toISOString());
+      console.log('endOfDay UTC:', endOfDay.toISOString());
 
       const expenses = await this.expenseRepository.find({
         where: {
-          user_id: user.id, // Sử dụng UUID của user
-          created_at: today,
+          user_id: user.id,
+          created_at: Between(startOfDay, endOfDay)
         },
+        order: {
+          created_at: 'ASC'
+        }
       });
 
       if (expenses.length === 0) {
@@ -96,7 +125,7 @@ export class ExpenseCommandService {
 
       expenses.forEach(expense => {
         response += `• ${expense.description}: ${expense.amount.toLocaleString('vi-VN')}đ\n`;
-        total += expense.amount;
+        total += Number(expense.amount);
       });
 
       response += `\n💰 Tổng chi: ${total.toLocaleString('vi-VN')}đ`;
